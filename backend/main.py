@@ -1,46 +1,45 @@
 
-from fastapi import FastAPI, UploadFile, File
-from pydantic import BaseModel
-import json, os, uuid
+import fitz
+import base64
+import os
+from openai import OpenAI
 
-app = FastAPI(title="Roboerta")
-DATA_DIR = "data"
-os.makedirs(DATA_DIR, exist_ok=True)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-@app.get("/")
-def root():
-    return {"app":"Roboerta","status":"running"}
+def analyze_first_page(pdf_path):
+    doc = fitz.open(pdf_path)
+    page = doc[0]
 
-@app.post("/upload-flyer")
-async def upload_flyer(file: UploadFile = File(...)):
-    flyer_path = os.path.join(DATA_DIR, f"{uuid.uuid4()}_{file.filename}")
-    with open(flyer_path, "wb") as f:
-        f.write(await file.read())
+    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+    png_bytes = pix.tobytes("png")
 
-    sample = {
-      "items":[
-        {"product":"Persil Laundry Detergent","price":8.99,"offer_type":"just_for_u"},
-        {"product":"Open Nature Water Crackers","price":3.99,"offer_type":"price_lock"}
-      ]
-    }
+    image_base64 = base64.b64encode(png_bytes).decode()
 
-    with open(os.path.join(DATA_DIR,"weekly_ad.json"),"w") as f:
-        json.dump(sample,f,indent=2)
+    response = client.responses.create(
+        model="gpt-4.1-mini",
+        input=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": """
+This is a Safeway ad.
 
-    return {"message":"flyer uploaded","items_parsed":2}
+Tell me:
+- what products are on the front page
+- what appears to be a major promotion
 
-@app.post("/scan-display")
-async def scan_display(file: UploadFile = File(...)):
-    try:
-        with open(os.path.join(DATA_DIR,"weekly_ad.json")) as f:
-            return json.load(f)
-    except:
-        return {"error":"No flyer loaded"}
+Keep answer short.
+"""
+                    },
+                    {
+                        "type": "input_image",
+                        "image_url": f"data:image/png;base64,{image_base64}"
+                    }
+                ]
+            }
+        ]
+    )
 
-@app.get("/ad-items")
-def ad_items():
-    try:
-        with open(os.path.join(DATA_DIR,"weekly_ad.json")) as f:
-            return json.load(f)
-    except:
-        return {"items":[]}
+    return response.output_text
