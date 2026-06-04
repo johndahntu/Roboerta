@@ -178,7 +178,13 @@ async def create_report(
         upload_payload = await read_upload(upload)
         submission = parse_submission(kind, upload_payload)
         comparison = compare_ad_to_submission(active_ad["ad_date"], active_ad["items"], kind, submission["items"])
-        report_id = database.create_report(kind, upload_payload["filename"], comparison["highlights"], comparison["groups"])
+        report_id = database.create_report(
+            kind,
+            upload_payload["filename"],
+            comparison["highlights"],
+            comparison["groups"],
+            comparison.get("section_results", []),
+        )
     except RoboertaAIError as exc:
         return redirect_with_status(error=str(exc))
     return redirect_with_status(message="Report generated.", focus=f"report-{report_id}")

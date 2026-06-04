@@ -79,7 +79,8 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 expires_at TEXT NOT NULL,
                 summary_json TEXT NOT NULL,
-                highlights_json TEXT NOT NULL
+                highlights_json TEXT NOT NULL,
+                section_results_json TEXT NOT NULL DEFAULT '[]'
             );
 
             CREATE TABLE IF NOT EXISTS report_matches (
@@ -105,6 +106,10 @@ def init_db() -> None:
         report_match_columns = {row["name"] for row in connection.execute("PRAGMA table_info(report_matches)").fetchall()}
         if "ad_size" not in report_match_columns:
             connection.execute("ALTER TABLE report_matches ADD COLUMN ad_size TEXT")
+
+        report_columns = {row["name"] for row in connection.execute("PRAGMA table_info(reports)").fetchall()}
+        if "section_results_json" not in report_columns:
+            connection.execute("ALTER TABLE reports ADD COLUMN section_results_json TEXT NOT NULL DEFAULT '[]'")
 
 
 def normalize_name(name: str) -> str:
@@ -198,13 +203,19 @@ def get_active_ad() -> dict[str, Any] | None:
     }
 
 
-def create_report(kind: str, source_filename: str, highlights: list[str], groups: dict[str, list[dict[str, Any]]]) -> int:
+def create_report(
+    kind: str,
+    source_filename: str,
+    highlights: list[str],
+    groups: dict[str, list[dict[str, Any]]],
+    section_results: list[dict[str, Any]] | None = None,
+) -> int:
     created_at = utc_now()
     expires_at = created_at + timedelta(days=REPORT_RETENTION_DAYS)
     summary = {group_name: len(groups.get(group_name, [])) for group_name in GROUP_ORDER}
     with get_connection() as connection:
         cursor = connection.execute(
-            "INSERT INTO reports (kind, source_filename, created_at, expires_at, summary_json, highlights_json) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO reports (kind, source_filename, created_at, expires_at, summary_json, highlights_json, section_results_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 kind,
                 source_filename,
@@ -212,6 +223,7 @@ def create_report(kind: str, source_filename: str, highlights: list[str], groups
                 expires_at.isoformat(),
                 json.dumps(summary),
                 json.dumps(highlights),
+                json.dumps(section_results or []),
             ),
         )
         report_id = cursor.lastrowid
@@ -249,7 +261,7 @@ def create_report(kind: str, source_filename: str, highlights: list[str], groups
 def list_reports() -> list[dict[str, Any]]:
     with get_connection() as connection:
         report_rows = connection.execute(
-            "SELECT id, kind, source_filename, created_at, expires_at, summary_json, highlights_json FROM reports ORDER BY created_at DESC"
+            "SELECT id, kind, source_filename, created_at, expires_at, summary_json, highlights_json, section_results_json FROM reports ORDER BY created_at DESC"
         ).fetchall()
         match_rows = connection.execute(
             "SELECT id, report_id, group_name, item_name, matched_ad_name, ad_size, ad_price, source_section, notes, done FROM report_matches ORDER BY report_id DESC, id ASC"
@@ -283,6 +295,7 @@ def list_reports() -> list[dict[str, Any]]:
                 "expires_at": row["expires_at"],
                 "summary": summary,
                 "highlights": json.loads(row["highlights_json"]),
+                "section_results": json.loads(row["section_results_json"] or "[]"),
                 "groups": grouped_matches.get(row["id"], {group_name: [] for group_name in GROUP_ORDER}),
                 "total_matches": sum(summary.values()),
             }

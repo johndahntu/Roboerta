@@ -4,6 +4,7 @@ import base64
 import difflib
 import io
 import json
+import re
 from typing import Any
 
 from openai import OpenAI
@@ -169,6 +170,13 @@ def _chunk_weekly_ad_uploads(uploads: list[dict[str, Any]], pages_per_chunk: int
     return chunks
 
 
+def _extract_page_number_from_filename(filename: str) -> int | None:
+    match = re.search(r"\.page-(\d+)\.pdf$", filename)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
 def _dedupe_ad_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen: dict[tuple[str, str, str, int | None], dict[str, Any]] = {}
     for item in items:
@@ -187,6 +195,55 @@ def _dedupe_ad_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not existing.get("notes") and item.get("notes"):
             existing["notes"] = item.get("notes")
     return list(seen.values())
+
+
+def _extract_text_from_upload(upload: dict[str, Any]) -> str:
+    content_type = upload.get("content_type") or "application/octet-stream"
+    content = upload.get("content") or b""
+    if content_type in ALLOWED_TEXT_TYPES:
+        return content.decode("utf-8", errors="ignore")
+    if content_type == PDF_TYPE:
+        return _extract_pdf_text(content)
+    if content_type in EXCEL_TYPES:
+        return _extract_excel_text(content)
+    return ""
+
+
+def _clean_planner_item_line(line: str) -> str:
+    without_upc = re.sub(r"\b\d{8,}\b", "", line)
+    normalized = " ".join(without_upc.split())
+    return normalized.strip("-: ")
+
+
+def _looks_like_section_header(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if len(stripped) > 80:
+        return False
+    letter_chars = [ch for ch in stripped if ch.isalpha()]
+    if not letter_chars:
+        return False
+    uppercase_ratio = sum(1 for ch in letter_chars if ch.isupper()) / len(letter_chars)
+    # Planner display headers are usually short and mostly uppercase.
+    return uppercase_ratio >= 0.7
+
+
+def _parse_planner_sections_from_text(text: str) -> list[dict[str, str]]:
+    entries: list[dict[str, str]] = []
+    current_section = "Uncategorized"
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if _looks_like_section_header(line):
+            current_section = line
+            continue
+        item_name = _clean_planner_item_line(line)
+        if not item_name:
+            continue
+        entries.append({"item_name": item_name, "source_section": current_section, "notes": ""})
+    return entries
 
 
 def _normalize_text(text: str) -> str:
@@ -288,7 +345,13 @@ Rules:
         chunk_payload = _run_json_request(system_prompt, chunk_instruction, chunk)
         if not merged_ad_date:
             merged_ad_date = chunk_payload.get("ad_date", "")
-        merged_items.extend(normalize_items(chunk_payload.get("items", [])))
+        chunk_items = normalize_items(chunk_payload.get("items", []))
+        if len(chunk) == 1:
+            forced_page = _extract_page_number_from_filename(chunk[0].get("filename", ""))
+            if forced_page is not None:
+                for item in chunk_items:
+                    item["page_number"] = forced_page
+        merged_items.extend(chunk_items)
 
     merged_items = _dedupe_ad_items(merged_items)
     if not merged_items:
@@ -301,6 +364,12 @@ Rules:
 
 
 def parse_submission(kind: str, upload: dict[str, Any]) -> dict[str, Any]:
+    if kind == "planner":
+        planner_text = _extract_text_from_upload(upload)
+        planner_items = _parse_planner_sections_from_text(planner_text)
+        if planner_items:
+            return {"items": planner_items}
+
     source_instruction = "photo of products or tags" if kind == "photo" else "planner or display section document"
     system_prompt = f"""
 You extract shopping items from a {source_instruction}.
@@ -339,12 +408,18 @@ def compare_ad_to_submission(
     del ad_date, submission_kind
 
     groups: dict[str, list[dict[str, Any]]] = {group_name: [] for group_name in GROUP_ORDER}
+    section_results_map: dict[str, list[dict[str, Any]]] = {}
+    section_order: list[str] = []
     matched_count = 0
     unmatched_count = 0
     threshold = 0.53
 
     for submission in submission_items:
         submission_name = (submission.get("item_name") or "").strip()
+        source_section = (submission.get("source_section") or "Uncategorized").strip() or "Uncategorized"
+        if source_section not in section_results_map:
+            section_results_map[source_section] = []
+            section_order.append(source_section)
         if not submission_name:
             continue
 
@@ -367,9 +442,10 @@ def compare_ad_to_submission(
             "matched_ad_name": best_item.get("name", submission_name),
             "ad_size": best_item.get("size_text", ""),
             "ad_price": best_item.get("price_text", ""),
-            "source_section": submission.get("source_section", ""),
+            "source_section": source_section,
             "notes": submission.get("notes", ""),
         }
+        section_results_map[source_section].append(record)
         for tag in tags:
             groups[tag].append(record)
 
@@ -378,4 +454,5 @@ def compare_ad_to_submission(
         f"Unmatched submitted items: {unmatched_count}.",
         "Matches are grouped by each ad item's real promo tags, not only front page.",
     ]
-    return {"highlights": highlights, "groups": groups}
+    section_results = [{"section_name": section_name, "matches": section_results_map.get(section_name, [])} for section_name in section_order]
+    return {"highlights": highlights, "groups": groups, "section_results": section_results}

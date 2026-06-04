@@ -17,6 +17,25 @@
         </div>
         <button class="button" onclick="window.print()" type="button">Print</button>
       </header>
+      {% if report.section_results %}
+        <section class="print-group">
+          <h2>Planner Display Census</h2>
+          {% for section in report.section_results %}
+            <p><strong>"{{ section.section_name }}"</strong></p>
+            {% if section.matches %}
+              <ul>
+                {% for item in section.matches %}
+                  <li>
+                    {{ item.matched_ad_name }}{% if item.ad_size %} · {{ item.ad_size }}{% endif %}{% if item.ad_price %} · {{ item.ad_price }}{% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p>No matches found to the weekly ad</p>
+            {% endif %}
+          {% endfor %}
+        </section>
+      {% endif %}
       {% for group_name in group_order %}
         {% if report.groups[group_name] %}
           <section class="print-group">

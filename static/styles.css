@@ -469,6 +469,36 @@ input[type="file"] {
   color: var(--accent-dark);
 }
 
+.section-census {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.section-census h4 {
+  margin: 0 0 0.65rem;
+}
+
+.section-census-block + .section-census-block {
+  margin-top: 0.6rem;
+}
+
+.section-census-name {
+  font-weight: 700;
+}
+
+.section-census-list {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.section-census-empty {
+  margin-top: 0.35rem;
+  color: var(--muted);
+}
+
 .match-group {
   padding-top: 0.25rem;
 }

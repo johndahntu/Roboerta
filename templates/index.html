@@ -199,6 +199,28 @@
                 </div>
               {% endif %}
 
+              {% if report.section_results %}
+                <section class="section-census">
+                  <h4>Planner Display Census</h4>
+                  {% for section in report.section_results %}
+                    <div class="section-census-block">
+                      <div class="section-census-name">"{{ section.section_name }}"</div>
+                      {% if section.matches %}
+                        <ul class="section-census-list">
+                          {% for item in section.matches %}
+                            <li>
+                              {{ item.matched_ad_name }}{% if item.ad_size %} · {{ item.ad_size }}{% endif %}{% if item.ad_price %} · {{ item.ad_price }}{% endif %}
+                            </li>
+                          {% endfor %}
+                        </ul>
+                      {% else %}
+                        <div class="section-census-empty">No matches found to the weekly ad</div>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </section>
+              {% endif %}
+
               <div class="summary-grid">
                 {% for group_name in group_order %}
                   <div class="summary-cell">
