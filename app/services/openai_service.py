@@ -131,6 +131,7 @@ def _run_json_request(system_prompt: str, instruction: str, uploads: list[dict[s
     try:
         response = client.responses.create(
             model=OPENAI_MODEL,
+            temperature=0,
             input=[
                 {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
                 {"role": "user", "content": parts + [{"type": "input_text", "text": instruction}]},
@@ -184,28 +185,32 @@ Return strict JSON only with this shape:
   "ad_date": "YYYY-MM-DD or empty string",
   "items": [
     {
-      "name": "string",
-      "price_text": "string",
-      "page_number": 1,
-      "tags": ["front_page_items", "price_lock_items", "just_4_u_items", "five_friday_items", "member_price_items", "regular_items"],
-      "notes": "string"
+    "name": "string",
+    "price_text": "string",
+    "page_number": 1,
+    "tags": ["front_page_items", "price_lock_items", "just_4_u_items", "four_x_points_items", "five_friday_items", "member_price_items", "regular_items"],
+    "notes": "string"
     }
   ]
 }
 Rules:
 - Include one entry per ad item.
 - Cover all pages from all uploaded files; do not stop after page 1.
-- Use front_page_items when the item appears on the front page.
-- Use just_4_u_items for clip-or-click or just-for-u offers.
-- Use five_friday_items for $5 Friday items.
-- Use member_price_items for member price items.
-- Use price_lock_items for price lock items.
-- Include regular_items for any item that does not fit the special tags.
+- Do not assume an entire page belongs to a single promotion type.
+- Inspect each advertised item independently.
+- Use front_page_items when the item appears on page 1.
+- Use just_4_u_items when the item has a Clip or Click banner, coupon-style box, or barcode shown with the offer.
+- Use price_lock_items when the item has BOTH a yellow padlock icon and a blue Earn 2X Points icon.
+- Use five_friday_items when the item has a red circular graphic containing a white $5.
+- Use four_x_points_items when the item has a red Earn 4X Points graphic.
+- Use member_price_items when none of the special indicators above are present.
+- Include regular_items for general non-special ad items when promotion labels are unclear.
 - Tags may contain multiple values when applicable.
+- An item can belong to multiple tags at the same time.
 - Keep names concise and normalized to what a store employee would recognize.
 - Keep page_number accurate for every extracted item.
 """.strip()
-    instruction = "Parse these weekly ad files across every page and return the JSON structure exactly."
+    instruction = "Parse these Safeway weekly ad files across every page, classify each item by visual indicators, and return the JSON structure exactly."
     payload = _run_json_request(system_prompt, instruction, uploads)
     items = payload.get("items", [])
     if not items:

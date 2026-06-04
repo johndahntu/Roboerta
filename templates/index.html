@@ -72,7 +72,7 @@
             {% if filtered_ad_items %}
               {% if selected_view_group %}
                 {# Categorised view for $5 Friday / Front Page filters #}
-                {% set cat_labels = {'just_4_u_items': 'Just 4 U Offers', 'member_price_items': 'Member Price Items', 'price_lock_items': 'Price Lock Items', 'front_page_items': 'Front Page Features', 'five_friday_items': '$5 Friday Promotions', 'regular_items': 'Other Items', '_other': 'Other Items'} %}
+                {% set cat_labels = {'just_4_u_items': 'Just 4 U Offers', 'member_price_items': 'Member Price Items', 'price_lock_items': 'Price Lock Items', 'four_x_points_items': '4X Points Items', 'front_page_items': 'Front Page Features', 'five_friday_items': '$5 Friday Promotions', 'regular_items': 'Other Items', '_other': 'Other Items'} %}
                 {% for cat_key in category_group_order %}
                   {% if filtered_ad_groups[cat_key] is defined and filtered_ad_groups[cat_key] %}
                     <div class="ad-category-block">

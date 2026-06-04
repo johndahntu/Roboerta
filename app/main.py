@@ -64,6 +64,7 @@ async def home(
         "just_4_u_items",
         "member_price_items",
         "price_lock_items",
+        "four_x_points_items",
         "front_page_items",
         "five_friday_items",
         "regular_items",
@@ -107,7 +108,7 @@ async def home(
             "filtered_ad_items": filtered_ad_items,
             "filtered_ad_groups": filtered_ad_groups,
             "filtered_ad_title": filtered_ad_title,
-            "category_group_order": [c for c in ["just_4_u_items", "member_price_items", "price_lock_items", "front_page_items", "five_friday_items", "regular_items"] if c != selected_view_group] + ["_other"],
+            "category_group_order": [c for c in ["just_4_u_items", "member_price_items", "price_lock_items", "four_x_points_items", "front_page_items", "five_friday_items", "regular_items"] if c != selected_view_group] + ["_other"],
         },
     )
 
