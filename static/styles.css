@@ -409,8 +409,8 @@ input[type="file"] {
 }
 
 .promo-icon {
-  width: 34px;
-  height: 34px;
+  width: 68px;
+  height: 68px;
   object-fit: contain;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -418,8 +418,8 @@ input[type="file"] {
 }
 
 .promo-icon.small {
-  width: 28px;
-  height: 28px;
+  width: 56px;
+  height: 56px;
 }
 
 .match-icon-row {

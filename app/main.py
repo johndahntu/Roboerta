@@ -53,7 +53,7 @@ async def home(
     database.prune_expired_reports()
     active_ad = database.get_active_ad()
     reports = database.list_reports()
-    allowed_view_groups = {"five_friday_items", "front_page_items", "price_lock_items"}
+    allowed_view_groups = {"five_friday_items", "front_page_items", "price_lock_items", "just_4_u_items"}
     selected_view_group = view_group if view_group in allowed_view_groups else ""
 
     ad_updated_label = "Not updated"

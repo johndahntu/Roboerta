@@ -12,6 +12,7 @@
       <img src="/static/image.png" alt="RoboertaAI" class="brand-logo" />
       <nav class="top-actions" aria-label="Ad quick filters">
         <a class="top-link-button {% if not selected_view_group %}is-active{% endif %}" href="/#weekly-ad-items">All Items</a>
+        <a class="top-link-button {% if selected_view_group == 'just_4_u_items' %}is-active{% endif %}" href="/?view_group=just_4_u_items#weekly-ad-items">Just 4 U Items</a>
         <a class="top-link-button {% if selected_view_group == 'five_friday_items' %}is-active{% endif %}" href="/?view_group=five_friday_items#weekly-ad-items">$5 Friday Items</a>
         <a class="top-link-button {% if selected_view_group == 'front_page_items' %}is-active{% endif %}" href="/?view_group=front_page_items#weekly-ad-items">Front Page Items</a>
         <a class="top-link-button {% if selected_view_group == 'price_lock_items' %}is-active{% endif %}" href="/?view_group=price_lock_items#weekly-ad-items">Price Lock Items</a>
