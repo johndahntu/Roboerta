@@ -7,7 +7,7 @@ from typing import Any
 
 from openai import OpenAI
 from openpyxl import load_workbook
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
 
 from app.config import OPENAI_API_KEY, OPENAI_MODEL
 from app.database import GROUP_ORDER
@@ -66,6 +66,18 @@ def _extract_pdf_text(content: bytes) -> str:
     return "\n\n".join(pages)
 
 
+def _split_pdf_into_page_files(filename: str, content: bytes) -> tuple[list[tuple[str, bytes]], int]:
+    reader = PdfReader(io.BytesIO(content))
+    page_files: list[tuple[str, bytes]] = []
+    for index, page in enumerate(reader.pages, start=1):
+        writer = PdfWriter()
+        writer.add_page(page)
+        buffer = io.BytesIO()
+        writer.write(buffer)
+        page_files.append((f"{filename}.page-{index}.pdf", buffer.getvalue()))
+    return page_files, len(reader.pages)
+
+
 def _build_content_parts(client: OpenAI, uploads: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
     parts: list[dict[str, Any]] = []
     temporary_file_ids: list[str] = []
@@ -84,13 +96,21 @@ def _build_content_parts(client: OpenAI, uploads: list[dict[str, Any]]) -> tuple
             parts.append({"type": "input_text", "text": f"Filename: {filename}"})
             continue
         if content_type == PDF_TYPE:
-            uploaded = client.files.create(file=(filename, content, content_type), purpose="user_data")
-            temporary_file_ids.append(uploaded.id)
-            parts.append({"type": "input_file", "file_id": uploaded.id})
-            parts.append({"type": "input_text", "text": f"Filename: {filename}"})
+            page_files, page_count = _split_pdf_into_page_files(filename, content)
+            parts.append(
+                {
+                    "type": "input_text",
+                    "text": f"Filename: {filename}. Total pages: {page_count}. Parse all pages, not only the first page.",
+                }
+            )
+            for page_filename, page_bytes in page_files:
+                uploaded = client.files.create(file=(page_filename, page_bytes, content_type), purpose="user_data")
+                temporary_file_ids.append(uploaded.id)
+                parts.append({"type": "input_file", "file_id": uploaded.id})
+                parts.append({"type": "input_text", "text": f"Attached page file: {page_filename}"})
             pdf_text = _extract_pdf_text(content)
             if pdf_text:
-                parts.append({"type": "input_text", "text": f"Extracted PDF text:\n{pdf_text[:50000]}"})
+                parts.append({"type": "input_text", "text": f"Extracted PDF text (all pages):\n{pdf_text[:180000]}"})
             continue
         if content_type in EXCEL_TYPES:
             excel_text = _extract_excel_text(content)
@@ -142,6 +162,7 @@ Return strict JSON only with this shape:
 }
 Rules:
 - Include one entry per ad item.
+- Cover all pages from all uploaded files; do not stop after page 1.
 - Use front_page_items when the item appears on the front page.
 - Use just_4_u_items for clip-or-click or just-for-u offers.
 - Use five_friday_items for $5 Friday items.
@@ -150,8 +171,9 @@ Rules:
 - Include regular_items for any item that does not fit the special tags.
 - Tags may contain multiple values when applicable.
 - Keep names concise and normalized to what a store employee would recognize.
+- Keep page_number accurate for every extracted item.
 """.strip()
-    instruction = "Parse these weekly ad files and return the JSON structure exactly."
+    instruction = "Parse these weekly ad files across every page and return the JSON structure exactly."
     payload = _run_json_request(system_prompt, instruction, uploads)
     items = payload.get("items", [])
     if not items:
