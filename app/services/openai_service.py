@@ -169,6 +169,26 @@ def _chunk_weekly_ad_uploads(uploads: list[dict[str, Any]], pages_per_chunk: int
     return chunks
 
 
+def _dedupe_ad_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: dict[tuple[str, str, str, int | None], dict[str, Any]] = {}
+    for item in items:
+        name_key = _normalize_text(item.get("name", ""))
+        size_key = _normalize_text(item.get("size_text", ""))
+        price_key = _normalize_text(item.get("price_text", ""))
+        page_key = item.get("page_number")
+        key = (name_key, size_key, price_key, page_key)
+        if key not in seen:
+            seen[key] = item
+            continue
+        # Merge tags and notes when duplicates appear across chunk runs.
+        existing = seen[key]
+        merged_tags = sorted(set(existing.get("tags", [])) | set(item.get("tags", [])))
+        existing["tags"] = merged_tags
+        if not existing.get("notes") and item.get("notes"):
+            existing["notes"] = item.get("notes")
+    return list(seen.values())
+
+
 def _normalize_text(text: str) -> str:
     return " ".join("".join(ch.lower() if ch.isalnum() else " " for ch in text).split())
 
@@ -248,20 +268,16 @@ Rules:
             normalized.append(item)
         return normalized
 
-    try:
+    has_pdf = any((upload.get("content_type") or "") == PDF_TYPE for upload in uploads)
+    if not has_pdf:
         payload = _run_json_request(system_prompt, instruction, uploads)
         items = normalize_items(payload.get("items", []))
         if not items:
             raise RoboertaAIError("No weekly ad items were extracted from the uploaded files.")
-        return {
-            "ad_date": payload.get("ad_date", ""),
-            "items": items,
-        }
-    except RoboertaAIError as exc:
-        if "invalid JSON" not in str(exc):
-            raise
+        return {"ad_date": payload.get("ad_date", ""), "items": items}
 
-    chunked_uploads = _chunk_weekly_ad_uploads(uploads, pages_per_chunk=2)
+    # For PDF ads, parse page-by-page for consistent extraction coverage.
+    chunked_uploads = _chunk_weekly_ad_uploads(uploads, pages_per_chunk=1)
     merged_items: list[dict[str, Any]] = []
     merged_ad_date = ""
     for chunk_index, chunk in enumerate(chunked_uploads, start=1):
@@ -274,6 +290,7 @@ Rules:
             merged_ad_date = chunk_payload.get("ad_date", "")
         merged_items.extend(normalize_items(chunk_payload.get("items", [])))
 
+    merged_items = _dedupe_ad_items(merged_items)
     if not merged_items:
         raise RoboertaAIError("No weekly ad items were extracted from the uploaded files.")
 

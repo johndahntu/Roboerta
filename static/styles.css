@@ -56,6 +56,18 @@ body {
   flex-wrap: wrap;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .top-link-button {
   display: inline-flex;
   align-items: center;
@@ -328,6 +340,10 @@ input[type="file"] {
   border-radius: 18px;
   padding: 0.9rem;
   background: rgba(255, 255, 255, 0.45);
+}
+
+.ad-browser-panel {
+  margin-top: 1rem;
 }
 
 .ad-items-head {

@@ -19,10 +19,13 @@
       </nav>
     </div>
     <div class="top-right-actions">
-      <button class="top-link-button top-action-strong" type="submit" form="weekly-ad-form">Update Ad</button>
+      <button class="top-link-button top-action-strong" id="update-ad-trigger" type="button">Update Ad</button>
       <span class="top-link-button top-status-pill">Ad Updated: {{ ad_updated_label }}</span>
     </div>
   </header>
+  <form id="weekly-ad-form" action="/admin/weekly-ad" method="post" enctype="multipart/form-data" class="visually-hidden">
+    <input id="weekly-ad-file" type="file" name="files" accept="application/pdf" required />
+  </form>
   <main class="shell">
     <section class="hero-card">
       <h1>Welcome to RoboertaAI!</h1>
@@ -46,7 +49,7 @@
         <div class="panel-head">
           <div>
             <div class="section-label">Weekly Ad</div>
-            <h2>Load the active 10-page ad</h2>
+            <h2>Please load the active ad</h2>
           </div>
           {% if active_ad %}
             <span class="badge live">Live</span>
@@ -54,112 +57,11 @@
         </div>
 
         {% if active_ad %}
-          <div class="metrics">
-            <div class="metric">
-              <span class="metric-value">{{ active_ad.item_count }}</span>
-              <span class="metric-label">Parsed items</span>
-            </div>
-            <div class="metric">
-              <span class="metric-value">{{ active_ad.counts.front_page_items }}</span>
-              <span class="metric-label">Front page</span>
-            </div>
-            <div class="metric">
-              <span class="metric-value">{{ active_ad.counts.just_4_u_items }}</span>
-              <span class="metric-label">Just 4 U</span>
-            </div>
-          </div>
-          <p class="supporting-text">Files: {{ active_ad.source_filenames | join(', ') }}</p>
-          <section class="ad-items-block" id="weekly-ad-items">
-            <div class="ad-items-head">
-              <h3>{{ filtered_ad_title }}</h3>
-              <span>{{ filtered_ad_items | length }} items</span>
-            </div>
-            {% if filtered_ad_items %}
-              {% if selected_view_group %}
-                {# Categorised view for $5 Friday / Front Page filters #}
-                {% set cat_labels = {'just_4_u_items': 'Just 4 U Offers', 'member_price_items': 'Member Price Items', 'price_lock_items': 'Price Lock Items', 'four_x_points_items': '4X Points Items', 'front_page_items': 'Front Page Features', 'five_friday_items': '$5 Friday Promotions', 'regular_items': 'Other Items', '_other': 'Other Items'} %}
-                {% for cat_key in category_group_order %}
-                  {% if filtered_ad_groups[cat_key] is defined and filtered_ad_groups[cat_key] %}
-                    <div class="ad-category-block">
-                      <div class="ad-category-head">{{ cat_labels[cat_key] }} <span>{{ filtered_ad_groups[cat_key] | length }}</span></div>
-                      <div class="ad-item-list">
-                        {% for item in filtered_ad_groups[cat_key] %}
-                          <article class="ad-item-row">
-                            <div>
-                              <div class="ad-item-title">{{ item.name }}</div>
-                              <div class="ad-item-meta">
-                                {% if item.size_text %}{{ item.size_text }} · {% endif %}
-                                {% if item.price_text %}{{ item.price_text }}{% else %}Price not listed{% endif %}
-                                {% if item.page_number %} · Page {{ item.page_number }}{% endif %}
-                              </div>
-                            </div>
-                            <div class="ad-item-tags">
-                              {% if 'just_4_u_items' in item.tags %}
-                                <img src="/static/just-for-u-logo.jpeg" alt="Just 4 U" class="promo-icon" />
-                              {% endif %}
-                              {% if 'price_lock_items' in item.tags %}
-                                <img src="/static/pricelock.webp" alt="Price Lock" class="promo-icon" />
-                              {% endif %}
-                              {% for tag in item.tags %}
-                                {% if tag in group_labels and tag != selected_view_group %}
-                                  <span class="tag-pill">{{ group_labels[tag] }}</span>
-                                {% endif %}
-                              {% endfor %}
-                            </div>
-                          </article>
-                        {% endfor %}
-                      </div>
-                    </div>
-                  {% endif %}
-                {% endfor %}
-              {% else %}
-                {# Flat list for the All Items view #}
-                <div class="ad-item-list">
-                  {% for item in filtered_ad_items %}
-                    <article class="ad-item-row">
-                      <div>
-                        <div class="ad-item-title">{{ item.name }}</div>
-                        <div class="ad-item-meta">
-                          {% if item.size_text %}{{ item.size_text }} · {% endif %}
-                          {% if item.price_text %}{{ item.price_text }}{% else %}Price not listed{% endif %}
-                          {% if item.page_number %} · Page {{ item.page_number }}{% endif %}
-                        </div>
-                      </div>
-                      <div class="ad-item-tags">
-                        {% if 'just_4_u_items' in item.tags %}
-                          <img src="/static/just-for-u-logo.jpeg" alt="Just 4 U" class="promo-icon" />
-                        {% endif %}
-                        {% if 'price_lock_items' in item.tags %}
-                          <img src="/static/pricelock.webp" alt="Price Lock" class="promo-icon" />
-                        {% endif %}
-                        {% for tag in item.tags %}
-                          {% if tag in group_labels %}
-                            <span class="tag-pill">{{ group_labels[tag] }}</span>
-                          {% endif %}
-                        {% endfor %}
-                      </div>
-                    </article>
-                  {% endfor %}
-                </div>
-              {% endif %}
-            {% else %}
-              <p class="supporting-text">No items found in this category for the active ad.</p>
-            {% endif %}
-          </section>
+          <p class="supporting-text">Active ad is loaded. Press Update Ad to replace it with the latest Safeway PDF.</p>
+          <p class="supporting-text">Files: {{ active_ad.source_filenames | join(', ') }} · {{ active_ad.item_count }} items detected.</p>
         {% else %}
-          <p class="supporting-text">No weekly ad is active yet. Upload PDF or image files to initialize matching.</p>
+          <p class="supporting-text">No weekly ad is active yet, please download the latest ad for your store from Safeway.com and upload it.</p>
         {% endif %}
-
-        <form class="stack" id="weekly-ad-form" action="/admin/weekly-ad" method="post" enctype="multipart/form-data">
-          <label>
-            <span>Ad Date</span>
-            <input type="date" name="ad_date" required />
-          </label>
-          <label>
-            <span>Weekly Ad Files</span>
-            <input type="file" name="files" accept="application/pdf,image/*" multiple required />
-          </label>
-        </form>
       </article>
 
       <article class="panel accent-panel">
@@ -183,6 +85,85 @@
           <button class="button dark" type="submit">Generate Report</button>
         </form>
       </article>
+    </section>
+
+    <section class="panel ad-browser-panel" id="weekly-ad-items">
+      <div class="panel-head">
+        <div>
+          <div class="section-label">Weekly Ad Items</div>
+          <h2>{{ filtered_ad_title }}</h2>
+        </div>
+        <span class="badge">{{ filtered_ad_items | length }} items</span>
+      </div>
+      {% if filtered_ad_items %}
+        {% if selected_view_group %}
+          {% set cat_labels = {'just_4_u_items': 'Just 4 U Offers', 'member_price_items': 'Member Price Items', 'price_lock_items': 'Price Lock Items', 'four_x_points_items': '4X Points Items', 'front_page_items': 'Front Page Features', 'five_friday_items': '$5 Friday Promotions', 'regular_items': 'Other Items', '_other': 'Other Items'} %}
+          {% for cat_key in category_group_order %}
+            {% if filtered_ad_groups[cat_key] is defined and filtered_ad_groups[cat_key] %}
+              <div class="ad-category-block">
+                <div class="ad-category-head">{{ cat_labels[cat_key] }} <span>{{ filtered_ad_groups[cat_key] | length }}</span></div>
+                <div class="ad-item-list">
+                  {% for item in filtered_ad_groups[cat_key] %}
+                    <article class="ad-item-row">
+                      <div>
+                        <div class="ad-item-title">{{ item.name }}</div>
+                        <div class="ad-item-meta">
+                          {% if item.size_text %}{{ item.size_text }} · {% endif %}
+                          {% if item.price_text %}{{ item.price_text }}{% else %}Price not listed{% endif %}
+                          {% if item.page_number %} · Page {{ item.page_number }}{% endif %}
+                        </div>
+                      </div>
+                      <div class="ad-item-tags">
+                        {% if 'just_4_u_items' in item.tags %}
+                          <img src="/static/just-for-u-logo.jpeg" alt="Just 4 U" class="promo-icon" />
+                        {% endif %}
+                        {% if 'price_lock_items' in item.tags %}
+                          <img src="/static/pricelock.webp" alt="Price Lock" class="promo-icon" />
+                        {% endif %}
+                        {% for tag in item.tags %}
+                          {% if tag in group_labels and tag != selected_view_group %}
+                            <span class="tag-pill">{{ group_labels[tag] }}</span>
+                          {% endif %}
+                        {% endfor %}
+                      </div>
+                    </article>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+          {% endfor %}
+        {% else %}
+          <div class="ad-item-list">
+            {% for item in filtered_ad_items %}
+              <article class="ad-item-row">
+                <div>
+                  <div class="ad-item-title">{{ item.name }}</div>
+                  <div class="ad-item-meta">
+                    {% if item.size_text %}{{ item.size_text }} · {% endif %}
+                    {% if item.price_text %}{{ item.price_text }}{% else %}Price not listed{% endif %}
+                    {% if item.page_number %} · Page {{ item.page_number }}{% endif %}
+                  </div>
+                </div>
+                <div class="ad-item-tags">
+                  {% if 'just_4_u_items' in item.tags %}
+                    <img src="/static/just-for-u-logo.jpeg" alt="Just 4 U" class="promo-icon" />
+                  {% endif %}
+                  {% if 'price_lock_items' in item.tags %}
+                    <img src="/static/pricelock.webp" alt="Price Lock" class="promo-icon" />
+                  {% endif %}
+                  {% for tag in item.tags %}
+                    {% if tag in group_labels %}
+                      <span class="tag-pill">{{ group_labels[tag] }}</span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% else %}
+        <p class="supporting-text">No items found in this category for the active ad.</p>
+      {% endif %}
     </section>
 
     <section class="reports-section">
@@ -283,6 +264,19 @@
       }
     </script>
   {% endif %}
+  <script>
+    const updateButton = document.getElementById("update-ad-trigger");
+    const weeklyAdInput = document.getElementById("weekly-ad-file");
+    const weeklyAdForm = document.getElementById("weekly-ad-form");
+    if (updateButton && weeklyAdInput && weeklyAdForm) {
+      updateButton.addEventListener("click", () => weeklyAdInput.click());
+      weeklyAdInput.addEventListener("change", () => {
+        if (weeklyAdInput.files && weeklyAdInput.files.length > 0) {
+          weeklyAdForm.submit();
+        }
+      });
+    }
+  </script>
 </body>
 </html>
 

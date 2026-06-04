@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -142,7 +142,6 @@ async def read_upload(upload: UploadFile) -> dict[str, Any]:
 
 @app.post("/admin/weekly-ad")
 async def upload_weekly_ad(
-    ad_date: str = Form(""),
     files: list[UploadFile] = File(...),
 ) -> RedirectResponse:
     valid_uploads = [upload for upload in files if upload.filename]
@@ -151,7 +150,7 @@ async def upload_weekly_ad(
     try:
         uploads = [await read_upload(upload) for upload in valid_uploads]
         parsed = parse_weekly_ad(uploads)
-        final_ad_date = ad_date or parsed.get("ad_date") or "Unknown"
+        final_ad_date = parsed.get("ad_date") or "Unknown"
         database.replace_weekly_ad(final_ad_date, [item["filename"] for item in uploads], parsed["items"])
     except RoboertaAIError as exc:
         return redirect_with_status(error=str(exc))
