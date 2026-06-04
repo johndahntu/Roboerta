@@ -64,6 +64,7 @@ def init_db() -> None:
                 weekly_ad_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 normalized_name TEXT NOT NULL,
+                size_text TEXT,
                 price_text TEXT,
                 page_number INTEGER,
                 tags_json TEXT NOT NULL,
@@ -87,6 +88,7 @@ def init_db() -> None:
                 group_name TEXT NOT NULL,
                 item_name TEXT NOT NULL,
                 matched_ad_name TEXT NOT NULL,
+                ad_size TEXT,
                 ad_price TEXT,
                 source_section TEXT,
                 notes TEXT,
@@ -95,6 +97,14 @@ def init_db() -> None:
             );
             """
         )
+
+        ad_item_columns = {row["name"] for row in connection.execute("PRAGMA table_info(ad_items)").fetchall()}
+        if "size_text" not in ad_item_columns:
+            connection.execute("ALTER TABLE ad_items ADD COLUMN size_text TEXT")
+
+        report_match_columns = {row["name"] for row in connection.execute("PRAGMA table_info(report_matches)").fetchall()}
+        if "ad_size" not in report_match_columns:
+            connection.execute("ALTER TABLE report_matches ADD COLUMN ad_size TEXT")
 
 
 def normalize_name(name: str) -> str:
@@ -127,16 +137,18 @@ def replace_weekly_ad(ad_date: str, source_filenames: list[str], items: list[dic
                     weekly_ad_id,
                     name,
                     normalized_name,
+                    size_text,
                     price_text,
                     page_number,
                     tags_json,
                     notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     weekly_ad_id,
                     item["name"],
                     normalize_name(item["name"]),
+                    item.get("size_text"),
                     item.get("price_text"),
                     item.get("page_number"),
                     json.dumps(item.get("tags", [])),
@@ -153,7 +165,7 @@ def get_active_ad() -> dict[str, Any] | None:
         if ad_row is None:
             return None
         item_rows = connection.execute(
-            "SELECT id, name, normalized_name, price_text, page_number, tags_json, notes FROM ad_items WHERE weekly_ad_id = ? ORDER BY page_number, name",
+            "SELECT id, name, normalized_name, size_text, price_text, page_number, tags_json, notes FROM ad_items WHERE weekly_ad_id = ? ORDER BY page_number, name",
             (ad_row["id"],),
         ).fetchall()
     items = []
@@ -168,6 +180,7 @@ def get_active_ad() -> dict[str, Any] | None:
                 "id": row["id"],
                 "name": row["name"],
                 "normalized_name": row["normalized_name"],
+                "size_text": row["size_text"],
                 "price_text": row["price_text"],
                 "page_number": row["page_number"],
                 "tags": tags,
@@ -211,17 +224,19 @@ def create_report(kind: str, source_filename: str, highlights: list[str], groups
                         group_name,
                         item_name,
                         matched_ad_name,
+                        ad_size,
                         ad_price,
                         source_section,
                         notes,
                         done
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         report_id,
                         group_name,
                         item.get("item_name") or item.get("matched_ad_name") or "Unnamed Item",
                         item.get("matched_ad_name") or item.get("item_name") or "Unnamed Item",
+                        item.get("ad_size"),
                         item.get("ad_price"),
                         item.get("source_section"),
                         item.get("notes"),
@@ -237,7 +252,7 @@ def list_reports() -> list[dict[str, Any]]:
             "SELECT id, kind, source_filename, created_at, expires_at, summary_json, highlights_json FROM reports ORDER BY created_at DESC"
         ).fetchall()
         match_rows = connection.execute(
-            "SELECT id, report_id, group_name, item_name, matched_ad_name, ad_price, source_section, notes, done FROM report_matches ORDER BY report_id DESC, id ASC"
+            "SELECT id, report_id, group_name, item_name, matched_ad_name, ad_size, ad_price, source_section, notes, done FROM report_matches ORDER BY report_id DESC, id ASC"
         ).fetchall()
 
     grouped_matches: dict[int, dict[str, list[dict[str, Any]]]] = {}
@@ -248,6 +263,7 @@ def list_reports() -> list[dict[str, Any]]:
                 "id": row["id"],
                 "item_name": row["item_name"],
                 "matched_ad_name": row["matched_ad_name"],
+                "ad_size": row["ad_size"],
                 "ad_price": row["ad_price"],
                 "source_section": row["source_section"],
                 "notes": row["notes"],

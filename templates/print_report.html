@@ -25,6 +25,7 @@
               {% for match in report.groups[group_name] %}
                 <li>
                   <strong>{{ match.item_name }}</strong>
+                  {% if match.ad_size %} · {{ match.ad_size }}{% endif %}
                   {% if match.ad_price %} · {{ match.ad_price }}{% endif %}
                   {% if match.source_section %} · Section: {{ match.source_section }}{% endif %}
                   {% if match.notes %} · {{ match.notes }}{% endif %}

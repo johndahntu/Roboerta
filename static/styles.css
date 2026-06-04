@@ -49,9 +49,17 @@ body {
   gap: 0.55rem;
 }
 
+.top-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
 .top-link-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 34px;
   padding: 0.4rem 0.8rem;
   border: 1px solid var(--line);
@@ -62,6 +70,21 @@ body {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   background: rgba(255, 255, 255, 0.56);
+}
+
+.top-action-strong {
+  background: var(--accent);
+  color: #fffaf5;
+  border-color: transparent;
+  cursor: pointer;
+}
+
+.top-status-pill {
+  background: rgba(28, 93, 68, 0.1);
+  border-color: rgba(28, 93, 68, 0.2);
+  color: #1c5d44;
+  text-transform: none;
+  letter-spacing: 0.02em;
 }
 
 .top-link-button.is-active {
@@ -385,6 +408,26 @@ input[type="file"] {
   font-size: 0.8rem;
 }
 
+.promo-icon {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.promo-icon.small {
+  width: 28px;
+  height: 28px;
+}
+
+.match-icon-row {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
 .reports-section {
   margin-top: 1rem;
 }
@@ -470,6 +513,10 @@ input[type="file"] {
   .top-bar {
     flex-direction: column;
     align-items: start;
+  }
+
+  .top-right-actions {
+    width: 100%;
   }
 
   .metrics,

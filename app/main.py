@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
@@ -52,8 +53,16 @@ async def home(
     database.prune_expired_reports()
     active_ad = database.get_active_ad()
     reports = database.list_reports()
-    allowed_view_groups = {"five_friday_items", "front_page_items"}
+    allowed_view_groups = {"five_friday_items", "front_page_items", "price_lock_items"}
     selected_view_group = view_group if view_group in allowed_view_groups else ""
+
+    ad_updated_label = "Not updated"
+    if active_ad and active_ad.get("created_at"):
+        try:
+            parsed_created = datetime.fromisoformat(active_ad["created_at"])
+            ad_updated_label = parsed_created.strftime("%Y-%m-%d %I:%M %p")
+        except ValueError:
+            ad_updated_label = str(active_ad["created_at"])
 
     filtered_ad_items: list[dict[str, Any]] = []
     filtered_ad_groups: dict[str, list[dict[str, Any]]] = {}
@@ -96,7 +105,7 @@ async def home(
         "index.html",
         {
             "page_title": "RoboertaAI",
-            "ad_date": active_ad["ad_date"] if active_ad else "Not set",
+            "ad_updated_label": ad_updated_label,
             "message": message,
             "error": error,
             "focus": focus,

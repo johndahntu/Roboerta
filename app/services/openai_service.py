@@ -209,6 +209,7 @@ Return strict JSON only with this shape:
   "items": [
     {
     "name": "string",
+        "size_text": "string",
     "price_text": "string",
     "page_number": 1,
     "tags": ["front_page_items", "price_lock_items", "just_4_u_items", "four_x_points_items", "five_friday_items", "member_price_items", "regular_items"],
@@ -230,6 +231,7 @@ Rules:
 - Include regular_items for general non-special ad items when promotion labels are unclear.
 - Tags may contain multiple values when applicable.
 - An item can belong to multiple tags at the same time.
+- Include size_text whenever size, weight, count, volume, or pack information appears (for example: 12 oz, 2 lb, 24 ct, 6-pack).
 - Keep names concise and normalized to what a store employee would recognize.
 - Keep page_number accurate for every extracted item.
 """.strip()
@@ -238,6 +240,7 @@ Rules:
     def normalize_items(raw_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized: list[dict[str, Any]] = []
         for item in raw_items:
+            item.setdefault("size_text", "")
             item.setdefault("price_text", "")
             item.setdefault("page_number", None)
             item.setdefault("tags", ["regular_items"])
@@ -345,6 +348,7 @@ def compare_ad_to_submission(
         record = {
             "item_name": submission_name,
             "matched_ad_name": best_item.get("name", submission_name),
+            "ad_size": best_item.get("size_text", ""),
             "ad_price": best_item.get("price_text", ""),
             "source_section": submission.get("source_section", ""),
             "notes": submission.get("notes", ""),

@@ -14,9 +14,13 @@
         <a class="top-link-button {% if not selected_view_group %}is-active{% endif %}" href="/#weekly-ad-items">All Items</a>
         <a class="top-link-button {% if selected_view_group == 'five_friday_items' %}is-active{% endif %}" href="/?view_group=five_friday_items#weekly-ad-items">$5 Friday Items</a>
         <a class="top-link-button {% if selected_view_group == 'front_page_items' %}is-active{% endif %}" href="/?view_group=front_page_items#weekly-ad-items">Front Page Items</a>
+        <a class="top-link-button {% if selected_view_group == 'price_lock_items' %}is-active{% endif %}" href="/?view_group=price_lock_items#weekly-ad-items">Price Lock Items</a>
       </nav>
     </div>
-    <div class="ad-date">Ad Date: {{ ad_date }}</div>
+    <div class="top-right-actions">
+      <button class="top-link-button top-action-strong" type="submit" form="weekly-ad-form">Update Ad</button>
+      <span class="top-link-button top-status-pill">Ad Updated: {{ ad_updated_label }}</span>
+    </div>
   </header>
   <main class="shell">
     <section class="hero-card">
@@ -83,11 +87,18 @@
                             <div>
                               <div class="ad-item-title">{{ item.name }}</div>
                               <div class="ad-item-meta">
+                                {% if item.size_text %}{{ item.size_text }} · {% endif %}
                                 {% if item.price_text %}{{ item.price_text }}{% else %}Price not listed{% endif %}
                                 {% if item.page_number %} · Page {{ item.page_number }}{% endif %}
                               </div>
                             </div>
                             <div class="ad-item-tags">
+                              {% if 'just_4_u_items' in item.tags %}
+                                <img src="/static/just-for-u-logo.jpeg" alt="Just 4 U" class="promo-icon" />
+                              {% endif %}
+                              {% if 'price_lock_items' in item.tags %}
+                                <img src="/static/pricelock.webp" alt="Price Lock" class="promo-icon" />
+                              {% endif %}
                               {% for tag in item.tags %}
                                 {% if tag in group_labels and tag != selected_view_group %}
                                   <span class="tag-pill">{{ group_labels[tag] }}</span>
@@ -108,11 +119,18 @@
                       <div>
                         <div class="ad-item-title">{{ item.name }}</div>
                         <div class="ad-item-meta">
+                          {% if item.size_text %}{{ item.size_text }} · {% endif %}
                           {% if item.price_text %}{{ item.price_text }}{% else %}Price not listed{% endif %}
                           {% if item.page_number %} · Page {{ item.page_number }}{% endif %}
                         </div>
                       </div>
                       <div class="ad-item-tags">
+                        {% if 'just_4_u_items' in item.tags %}
+                          <img src="/static/just-for-u-logo.jpeg" alt="Just 4 U" class="promo-icon" />
+                        {% endif %}
+                        {% if 'price_lock_items' in item.tags %}
+                          <img src="/static/pricelock.webp" alt="Price Lock" class="promo-icon" />
+                        {% endif %}
                         {% for tag in item.tags %}
                           {% if tag in group_labels %}
                             <span class="tag-pill">{{ group_labels[tag] }}</span>
@@ -131,7 +149,7 @@
           <p class="supporting-text">No weekly ad is active yet. Upload PDF or image files to initialize matching.</p>
         {% endif %}
 
-        <form class="stack" action="/admin/weekly-ad" method="post" enctype="multipart/form-data">
+        <form class="stack" id="weekly-ad-form" action="/admin/weekly-ad" method="post" enctype="multipart/form-data">
           <label>
             <span>Ad Date</span>
             <input type="date" name="ad_date" required />
@@ -140,7 +158,6 @@
             <span>Weekly Ad Files</span>
             <input type="file" name="files" accept="application/pdf,image/*" multiple required />
           </label>
-          <button class="button" type="submit">Parse Weekly Ad</button>
         </form>
       </article>
 
@@ -224,8 +241,16 @@
                             <div>
                               <div class="match-title">{{ match.item_name }}</div>
                               <div class="match-meta">
-                                Ad match: {{ match.matched_ad_name }}{% if match.ad_price %} · {{ match.ad_price }}{% endif %}
+                                Ad match: {{ match.matched_ad_name }}{% if match.ad_size %} · {{ match.ad_size }}{% endif %}{% if match.ad_price %} · {{ match.ad_price }}{% endif %}
                                 {% if match.source_section %} · Section: {{ match.source_section }}{% endif %}
+                              </div>
+                              <div class="match-icon-row">
+                                {% if group_name == 'just_4_u_items' %}
+                                  <img src="/static/just-for-u-logo.jpeg" alt="Just 4 U" class="promo-icon small" />
+                                {% endif %}
+                                {% if group_name == 'price_lock_items' %}
+                                  <img src="/static/pricelock.webp" alt="Price Lock" class="promo-icon small" />
+                                {% endif %}
                               </div>
                               {% if match.notes %}
                                 <div class="match-notes">{{ match.notes }}</div>
