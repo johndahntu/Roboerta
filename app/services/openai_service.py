@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import difflib
 import io
 import json
 from typing import Any
@@ -144,6 +145,37 @@ def _run_json_request(system_prompt: str, instruction: str, uploads: list[dict[s
                 continue
 
 
+def _normalize_text(text: str) -> str:
+    return " ".join("".join(ch.lower() if ch.isalnum() else " " for ch in text).split())
+
+
+def _token_set(text: str) -> set[str]:
+    return {token for token in _normalize_text(text).split() if len(token) > 1}
+
+
+def _match_score(submission_name: str, ad_name: str) -> float:
+    normalized_submission = _normalize_text(submission_name)
+    normalized_ad = _normalize_text(ad_name)
+    if not normalized_submission or not normalized_ad:
+        return 0.0
+
+    if normalized_submission == normalized_ad:
+        return 1.0
+
+    ratio = difflib.SequenceMatcher(None, normalized_submission, normalized_ad).ratio()
+    submission_tokens = _token_set(normalized_submission)
+    ad_tokens = _token_set(normalized_ad)
+    overlap = len(submission_tokens & ad_tokens)
+    union = len(submission_tokens | ad_tokens)
+    jaccard = (overlap / union) if union else 0.0
+
+    contains_bonus = 0.0
+    if normalized_submission in normalized_ad or normalized_ad in normalized_submission:
+        contains_bonus = 0.12
+
+    return max(ratio, jaccard + contains_bonus)
+
+
 def parse_weekly_ad(uploads: list[dict[str, Any]]) -> dict[str, Any]:
     system_prompt = """
 You extract structured weekly grocery ad data.
@@ -222,47 +254,45 @@ def compare_ad_to_submission(
     submission_kind: str,
     submission_items: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    ad_payload = [
-        {
-            "name": item["name"],
-            "price_text": item.get("price_text", ""),
-            "page_number": item.get("page_number"),
-            "tags": item.get("tags", []),
-            "notes": item.get("notes", ""),
+    del ad_date, submission_kind
+
+    groups: dict[str, list[dict[str, Any]]] = {group_name: [] for group_name in GROUP_ORDER}
+    matched_count = 0
+    unmatched_count = 0
+    threshold = 0.53
+
+    for submission in submission_items:
+        submission_name = (submission.get("item_name") or "").strip()
+        if not submission_name:
+            continue
+
+        best_item: dict[str, Any] | None = None
+        best_score = 0.0
+        for ad_item in ad_items:
+            score = _match_score(submission_name, ad_item.get("name", ""))
+            if score > best_score:
+                best_score = score
+                best_item = ad_item
+
+        if best_item is None or best_score < threshold:
+            unmatched_count += 1
+            continue
+
+        matched_count += 1
+        tags = [tag for tag in best_item.get("tags", []) if tag in GROUP_ORDER] or ["regular_items"]
+        record = {
+            "item_name": submission_name,
+            "matched_ad_name": best_item.get("name", submission_name),
+            "ad_price": best_item.get("price_text", ""),
+            "source_section": submission.get("source_section", ""),
+            "notes": submission.get("notes", ""),
         }
-        for item in ad_items
+        for tag in tags:
+            groups[tag].append(record)
+
+    highlights = [
+        f"Matched {matched_count} submitted items across all ad pages.",
+        f"Unmatched submitted items: {unmatched_count}.",
+        "Matches are grouped by each ad item's real promo tags, not only front page.",
     ]
-    system_prompt = f"""
-You compare a weekly grocery ad against a submitted {submission_kind}.
-Return strict JSON only with this shape:
-{{
-  "highlights": ["string"],
-  "groups": {{
-    "front_page_items": [{{"item_name": "string", "matched_ad_name": "string", "ad_price": "string", "source_section": "string", "notes": "string"}}],
-    "price_lock_items": [],
-    "just_4_u_items": [],
-    "five_friday_items": [],
-    "member_price_items": [],
-    "regular_items": []
-  }}
-}}
-Rules:
-- Group matches using these exact keys: {', '.join(GROUP_ORDER)}.
-- A submitted item can appear in multiple groups only if the ad entry clearly belongs to multiple tags.
-- Keep source_section from the submitted item when available.
-- Only include strong matches.
-- highlights should be short, factual, and useful.
-""".strip()
-    instruction = (
-        f"Weekly ad date: {ad_date}\n"
-        f"Weekly ad items JSON:\n{json.dumps(ad_payload, indent=2)}\n\n"
-        f"Submitted items JSON:\n{json.dumps(submission_items, indent=2)}\n\n"
-        "Compare these sets and return the JSON structure exactly."
-    )
-    payload = _run_json_request(system_prompt, instruction, [])
-    groups = payload.get("groups", {})
-    normalized_groups = {group_name: groups.get(group_name, []) for group_name in GROUP_ORDER}
-    return {
-        "highlights": payload.get("highlights", []),
-        "groups": normalized_groups,
-    }
+    return {"highlights": highlights, "groups": groups}
