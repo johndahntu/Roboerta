@@ -8,16 +8,24 @@
 </head>
 <body>
   <header class="top-bar">
-    <div class="brand">RoboertaAI</div>
+    <div class="top-left">
+      <img src="/static/image.png" alt="RoboertaAI" class="brand-logo" />
+      <nav class="top-actions" aria-label="Ad quick filters">
+        <a class="top-link-button {% if not selected_view_group %}is-active{% endif %}" href="/#weekly-ad-items">All Items</a>
+        <a class="top-link-button {% if selected_view_group == 'five_friday_items' %}is-active{% endif %}" href="/?view_group=five_friday_items#weekly-ad-items">$5 Friday Items</a>
+        <a class="top-link-button {% if selected_view_group == 'front_page_items' %}is-active{% endif %}" href="/?view_group=front_page_items#weekly-ad-items">Front Page Items</a>
+      </nav>
+    </div>
     <div class="ad-date">Ad Date: {{ ad_date }}</div>
   </header>
   <main class="shell">
     <section class="hero-card">
-      <div class="eyebrow">Mobile-first matching workflow</div>
-      <h1>Parse the weekly ad once. Compare planners or shelf photos against it all week.</h1>
+      <h1>Welcome to RoboertaAI!</h1>
       <p>
-        RoboertaAI stores the current ad in SQLite, groups matches by promo type, keeps reports for three days,
-        and clears the active ad data when a new weekly ad is loaded.
+        RoboertaAI is an intelligent store auditing assistant designed to help identify products featured in the current weekly ad. Simply upload a display photo or planner, and RoboertaAI will compare the contents against the active weekly ad to generate a detailed report.
+      </p>
+      <p>
+        Reports are automatically organized by promotion type, including Front Page Features, Just 4 U Offers, Price Lock Items, $5 Friday Promotions, Flash Sales, and Member Price Items.
       </p>
     </section>
 
@@ -56,6 +64,69 @@
             </div>
           </div>
           <p class="supporting-text">Files: {{ active_ad.source_filenames | join(', ') }}</p>
+          <section class="ad-items-block" id="weekly-ad-items">
+            <div class="ad-items-head">
+              <h3>{{ filtered_ad_title }}</h3>
+              <span>{{ filtered_ad_items | length }} items</span>
+            </div>
+            {% if filtered_ad_items %}
+              {% if selected_view_group %}
+                {# Categorised view for $5 Friday / Front Page filters #}
+                {% set cat_labels = {'just_4_u_items': 'Just 4 U Offers', 'member_price_items': 'Member Price Items', 'price_lock_items': 'Price Lock Items', 'front_page_items': 'Front Page Features', 'five_friday_items': '$5 Friday Promotions', 'regular_items': 'Other Items', '_other': 'Other Items'} %}
+                {% for cat_key in category_group_order %}
+                  {% if filtered_ad_groups[cat_key] is defined and filtered_ad_groups[cat_key] %}
+                    <div class="ad-category-block">
+                      <div class="ad-category-head">{{ cat_labels[cat_key] }} <span>{{ filtered_ad_groups[cat_key] | length }}</span></div>
+                      <div class="ad-item-list">
+                        {% for item in filtered_ad_groups[cat_key] %}
+                          <article class="ad-item-row">
+                            <div>
+                              <div class="ad-item-title">{{ item.name }}</div>
+                              <div class="ad-item-meta">
+                                {% if item.price_text %}{{ item.price_text }}{% else %}Price not listed{% endif %}
+                                {% if item.page_number %} · Page {{ item.page_number }}{% endif %}
+                              </div>
+                            </div>
+                            <div class="ad-item-tags">
+                              {% for tag in item.tags %}
+                                {% if tag in group_labels and tag != selected_view_group %}
+                                  <span class="tag-pill">{{ group_labels[tag] }}</span>
+                                {% endif %}
+                              {% endfor %}
+                            </div>
+                          </article>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              {% else %}
+                {# Flat list for the All Items view #}
+                <div class="ad-item-list">
+                  {% for item in filtered_ad_items %}
+                    <article class="ad-item-row">
+                      <div>
+                        <div class="ad-item-title">{{ item.name }}</div>
+                        <div class="ad-item-meta">
+                          {% if item.price_text %}{{ item.price_text }}{% else %}Price not listed{% endif %}
+                          {% if item.page_number %} · Page {{ item.page_number }}{% endif %}
+                        </div>
+                      </div>
+                      <div class="ad-item-tags">
+                        {% for tag in item.tags %}
+                          {% if tag in group_labels %}
+                            <span class="tag-pill">{{ group_labels[tag] }}</span>
+                          {% endif %}
+                        {% endfor %}
+                      </div>
+                    </article>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% else %}
+              <p class="supporting-text">No items found in this category for the active ad.</p>
+            {% endif %}
+          </section>
         {% else %}
           <p class="supporting-text">No weekly ad is active yet. Upload PDF or image files to initialize matching.</p>
         {% endif %}

@@ -42,10 +42,54 @@ database.init_db()
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request, message: str = "", error: str = "", focus: str = "") -> HTMLResponse:
+async def home(
+    request: Request,
+    message: str = "",
+    error: str = "",
+    focus: str = "",
+    view_group: str = "",
+) -> HTMLResponse:
     database.prune_expired_reports()
     active_ad = database.get_active_ad()
     reports = database.list_reports()
+    allowed_view_groups = {"five_friday_items", "front_page_items"}
+    selected_view_group = view_group if view_group in allowed_view_groups else ""
+
+    filtered_ad_items: list[dict[str, Any]] = []
+    filtered_ad_groups: dict[str, list[dict[str, Any]]] = {}
+    filtered_ad_title = "All Weekly Ad Items"
+
+    # Secondary category order shown when a filter is active
+    secondary_category_order = [
+        "just_4_u_items",
+        "member_price_items",
+        "price_lock_items",
+        "front_page_items",
+        "five_friday_items",
+        "regular_items",
+    ]
+
+    if active_ad:
+        all_ad_items = active_ad.get("items", [])
+        if selected_view_group:
+            filtered_ad_items = [item for item in all_ad_items if selected_view_group in item.get("tags", [])]
+            filtered_ad_title = database.GROUP_LABELS.get(selected_view_group, "Filtered Items")
+            # Group filtered items by secondary promo tags
+            assigned_ids: set[int] = set()
+            for category in secondary_category_order:
+                if category == selected_view_group:
+                    continue
+                group_items = [item for item in filtered_ad_items if category in item.get("tags", [])]
+                if group_items:
+                    filtered_ad_groups[category] = group_items
+                    assigned_ids.update(id(item) for item in group_items)
+            # Items that only carry the primary filter tag land in _other
+            uncategorised = [item for item in filtered_ad_items if id(item) not in assigned_ids]
+            if uncategorised:
+                filtered_ad_groups["_other"] = uncategorised
+        else:
+            filtered_ad_items = all_ad_items
+
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -59,6 +103,11 @@ async def home(request: Request, message: str = "", error: str = "", focus: str 
             "reports": reports,
             "group_labels": database.GROUP_LABELS,
             "group_order": database.GROUP_ORDER,
+            "selected_view_group": selected_view_group,
+            "filtered_ad_items": filtered_ad_items,
+            "filtered_ad_groups": filtered_ad_groups,
+            "filtered_ad_title": filtered_ad_title,
+            "category_group_order": [c for c in ["just_4_u_items", "member_price_items", "price_lock_items", "front_page_items", "five_friday_items", "regular_items"] if c != selected_view_group] + ["_other"],
         },
     )
 
