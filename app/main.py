@@ -63,6 +63,11 @@ async def home(request: Request, message: str = "", error: str = "", focus: str 
     )
 
 
+@app.head("/")
+async def home_head() -> HTMLResponse:
+    return HTMLResponse(status_code=200)
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
