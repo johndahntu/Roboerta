@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ page_title }}</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="top-bar">
+    <div class="brand">RoboertaAI</div>
+    <div class="ad-date">Ad Date: {{ ad_date }}</div>
+  </header>
+  <main class="shell">
+    <section class="hero-card">
+      <div class="eyebrow">Mobile-first matching workflow</div>
+      <h1>Parse the weekly ad once. Compare planners or shelf photos against it all week.</h1>
+      <p>
+        RoboertaAI stores the current ad in SQLite, groups matches by promo type, keeps reports for three days,
+        and clears the active ad data when a new weekly ad is loaded.
+      </p>
+    </section>
+
+    {% if message %}
+      <div class="notice success">{{ message }}</div>
+    {% endif %}
+    {% if error %}
+      <div class="notice error">{{ error }}</div>
+    {% endif %}
+
+    <section class="grid">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="section-label">Weekly Ad</div>
+            <h2>Load the active 10-page ad</h2>
+          </div>
+          {% if active_ad %}
+            <span class="badge live">Live</span>
+          {% endif %}
+        </div>
+
+        {% if active_ad %}
+          <div class="metrics">
+            <div class="metric">
+              <span class="metric-value">{{ active_ad.item_count }}</span>
+              <span class="metric-label">Parsed items</span>
+            </div>
+            <div class="metric">
+              <span class="metric-value">{{ active_ad.counts.front_page_items }}</span>
+              <span class="metric-label">Front page</span>
+            </div>
+            <div class="metric">
+              <span class="metric-value">{{ active_ad.counts.just_4_u_items }}</span>
+              <span class="metric-label">Just 4 U</span>
+            </div>
+          </div>
+          <p class="supporting-text">Files: {{ active_ad.source_filenames | join(', ') }}</p>
+        {% else %}
+          <p class="supporting-text">No weekly ad is active yet. Upload PDF or image files to initialize matching.</p>
+        {% endif %}
+
+        <form class="stack" action="/admin/weekly-ad" method="post" enctype="multipart/form-data">
+          <label>
+            <span>Ad Date</span>
+            <input type="date" name="ad_date" required />
+          </label>
+          <label>
+            <span>Weekly Ad Files</span>
+            <input type="file" name="files" accept="application/pdf,image/*" multiple required />
+          </label>
+          <button class="button" type="submit">Parse Weekly Ad</button>
+        </form>
+      </article>
+
+      <article class="panel accent-panel">
+        <div class="panel-head">
+          <div>
+            <div class="section-label">Compare Submission</div>
+            <h2>Submit a photo or a planner</h2>
+          </div>
+        </div>
+        <p class="supporting-text">Use one input only. Photo opens the mobile camera. Planner keeps the display section name when it exists.</p>
+        <form class="stack" action="/reports" method="post" enctype="multipart/form-data">
+          <label>
+            <span>Camera Photo</span>
+            <input type="file" name="photo" accept="image/*" capture="environment" />
+          </label>
+          <div class="or-divider">or</div>
+          <label>
+            <span>Planner Upload</span>
+            <input type="file" name="planner" accept="application/pdf,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,image/*" />
+          </label>
+          <button class="button dark" type="submit">Generate Report</button>
+        </form>
+      </article>
+    </section>
+
+    <section class="reports-section">
+      <div class="section-heading-row">
+        <div>
+          <div class="section-label">Reports</div>
+          <h2>Recent matches</h2>
+        </div>
+      </div>
+
+      {% if reports %}
+        <div class="report-list">
+          {% for report in reports %}
+            <article class="report-card" id="report-{{ report.id }}">
+              <div class="report-card-head">
+                <div>
+                  <h3>{{ report.kind | title }} report</h3>
+                  <p>{{ report.source_filename }} · expires {{ report.expires_at[:10] }}</p>
+                </div>
+                <div class="report-actions">
+                  <a class="button ghost" href="/reports/{{ report.id }}/print" target="_blank" rel="noreferrer">Print</a>
+                  <form action="/reports/{{ report.id }}/delete" method="post">
+                    <button class="button ghost danger" type="submit">Delete</button>
+                  </form>
+                </div>
+              </div>
+
+              {% if report.highlights %}
+                <div class="highlights">
+                  {% for line in report.highlights %}
+                    <span class="highlight-pill">{{ line }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+
+              <div class="summary-grid">
+                {% for group_name in group_order %}
+                  <div class="summary-cell">
+                    <span class="summary-count">{{ report.summary[group_name] }}</span>
+                    <span class="summary-label">{{ group_labels[group_name] }}</span>
+                  </div>
+                {% endfor %}
+              </div>
+
+              <div class="group-stack">
+                {% for group_name in group_order %}
+                  {% if report.groups[group_name] %}
+                    <section class="match-group">
+                      <div class="match-group-head">
+                        <h4>{{ group_labels[group_name] }}</h4>
+                        <span>{{ report.groups[group_name] | length }} matches</span>
+                      </div>
+                      <div class="match-list">
+                        {% for match in report.groups[group_name] %}
+                          <form class="match-row {% if match.done %}is-done{% endif %}" action="/reports/{{ report.id }}/matches/{{ match.id }}/toggle" method="post">
+                            <button class="check-button" type="submit" aria-label="Toggle completion">{% if match.done %}✓{% else %}○{% endif %}</button>
+                            <div>
+                              <div class="match-title">{{ match.item_name }}</div>
+                              <div class="match-meta">
+                                Ad match: {{ match.matched_ad_name }}{% if match.ad_price %} · {{ match.ad_price }}{% endif %}
+                                {% if match.source_section %} · Section: {{ match.source_section }}{% endif %}
+                              </div>
+                              {% if match.notes %}
+                                <div class="match-notes">{{ match.notes }}</div>
+                              {% endif %}
+                            </div>
+                          </form>
+                        {% endfor %}
+                      </div>
+                    </section>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <article class="empty-state">
+          <h3>No reports yet</h3>
+          <p>After you load the weekly ad, submit a photo or planner to generate a match report.</p>
+        </article>
+      {% endif %}
+    </section>
+  </main>
+  {% if focus %}
+    <script>
+      const target = document.getElementById({{ focus | tojson }});
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    </script>
+  {% endif %}
+</body>
+</html>
+
