@@ -132,6 +132,7 @@ def _run_json_request(system_prompt: str, instruction: str, uploads: list[dict[s
         response = client.responses.create(
             model=OPENAI_MODEL,
             temperature=0,
+            max_output_tokens=12000,
             input=[
                 {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
                 {"role": "user", "content": parts + [{"type": "input_text", "text": instruction}]},
@@ -144,6 +145,28 @@ def _run_json_request(system_prompt: str, instruction: str, uploads: list[dict[s
                 client.files.delete(file_id)
             except Exception:
                 continue
+
+
+def _chunk_weekly_ad_uploads(uploads: list[dict[str, Any]], pages_per_chunk: int = 2) -> list[list[dict[str, Any]]]:
+    chunks: list[list[dict[str, Any]]] = []
+    for upload in uploads:
+        content_type = upload.get("content_type") or "application/octet-stream"
+        if content_type != PDF_TYPE:
+            chunks.append([upload])
+            continue
+
+        page_files, _ = _split_pdf_into_page_files(str(upload.get("filename") or "weekly-ad.pdf"), upload["content"])
+        page_uploads = [
+            {
+                "filename": page_filename,
+                "content_type": PDF_TYPE,
+                "content": page_bytes,
+            }
+            for page_filename, page_bytes in page_files
+        ]
+        for index in range(0, len(page_uploads), pages_per_chunk):
+            chunks.append(page_uploads[index : index + pages_per_chunk])
+    return chunks
 
 
 def _normalize_text(text: str) -> str:
@@ -211,16 +234,50 @@ Rules:
 - Keep page_number accurate for every extracted item.
 """.strip()
     instruction = "Parse these Safeway weekly ad files across every page, classify each item by visual indicators, and return the JSON structure exactly."
-    payload = _run_json_request(system_prompt, instruction, uploads)
-    items = payload.get("items", [])
-    if not items:
+
+    def normalize_items(raw_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        for item in raw_items:
+            item.setdefault("price_text", "")
+            item.setdefault("page_number", None)
+            item.setdefault("tags", ["regular_items"])
+            item.setdefault("notes", "")
+            normalized.append(item)
+        return normalized
+
+    try:
+        payload = _run_json_request(system_prompt, instruction, uploads)
+        items = normalize_items(payload.get("items", []))
+        if not items:
+            raise RoboertaAIError("No weekly ad items were extracted from the uploaded files.")
+        return {
+            "ad_date": payload.get("ad_date", ""),
+            "items": items,
+        }
+    except RoboertaAIError as exc:
+        if "invalid JSON" not in str(exc):
+            raise
+
+    chunked_uploads = _chunk_weekly_ad_uploads(uploads, pages_per_chunk=2)
+    merged_items: list[dict[str, Any]] = []
+    merged_ad_date = ""
+    for chunk_index, chunk in enumerate(chunked_uploads, start=1):
+        chunk_instruction = (
+            f"Chunk {chunk_index} of {len(chunked_uploads)}. "
+            "Parse ONLY the items visible in these files and return the JSON structure exactly."
+        )
+        chunk_payload = _run_json_request(system_prompt, chunk_instruction, chunk)
+        if not merged_ad_date:
+            merged_ad_date = chunk_payload.get("ad_date", "")
+        merged_items.extend(normalize_items(chunk_payload.get("items", [])))
+
+    if not merged_items:
         raise RoboertaAIError("No weekly ad items were extracted from the uploaded files.")
-    for item in items:
-        item.setdefault("price_text", "")
-        item.setdefault("page_number", None)
-        item.setdefault("tags", ["regular_items"])
-        item.setdefault("notes", "")
-    return payload
+
+    return {
+        "ad_date": merged_ad_date,
+        "items": merged_items,
+    }
 
 
 def parse_submission(kind: str, upload: dict[str, Any]) -> dict[str, Any]:
